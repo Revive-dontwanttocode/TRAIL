@@ -5,14 +5,7 @@ Author: Zhixi Chen
 Date: 2025-06-19
 """
 
-from prompts import (
-    build_user_prompt, description_text, get_system_prompt,
-    DOUBAN_SYSTEM_PROMPT,
-    AMAZON_BEAUTY_SYSTEM_PROMPT,
-    AMAZON_BEAUTY_SIMPLE_SYSTEM_PROMPT,
-    AMAZON_BABY_SYSTEM_PROMPT,
-    ANSWER_TEMPLATE,
-)
+from .prompts import build_user_prompt, get_system_prompt
 
 from transformers import AutoTokenizer
 import dirtyjson
@@ -119,7 +112,7 @@ def tokenize_data_sample(sample: dict, tokenizer: AutoTokenizer, max_length, dat
     model_inputs["ground_truth_popularity_score"] = float(sample["ground_truth_popularity_score"])
     model_inputs["historical_popularity_trends"] = sample["historical_popularity_trends"]
     model_inputs["predict_timestamp"] = sample["predict_timestamp"]
-    model_inputs["movie_description"] = description_text(sample)
+    model_inputs["movie_description"] = sample["item_description"]
     model_inputs["list_historical_popularity_trends"] = resolve_trend(sample["historical_popularity_trends"])
 
     # construct labels

@@ -1,9 +1,8 @@
 {
   "random_seed": 1025,
   "fine_tuning_model_name": "deepseek-ai/DeepSeek-R1-Distill-Qwen-7B",
-  "dataset_path": "data/trail_douban/douban_training_set_new.csv",
+  "dataset_path": "data/trail_douban/training.csv",
   "dataset_version": "not_provided",
-  "dataset_type": "douban",
   "peft_type": "lora",
   "resume_from_checkpoint": false,
   "lora_adapter_resume_path": "",
@@ -24,7 +23,11 @@
   "lora_config": {
     "r": 32,
     "lora_alpha": 64,
-    "target_modules": ["q_proj", "v_proj", "o_proj"],
+    "target_modules": [
+      "q_proj",
+      "v_proj",
+      "o_proj"
+    ],
     "lora_dropout": 0.05,
     "bias": "none",
     "task_type": "CAUSAL_LM"
@@ -32,7 +35,10 @@
   "qlora_config": {
     "r": 16,
     "qlora_alpha": 32,
-    "target_modules": ["q_proj", "v_proj"],
+    "target_modules": [
+      "q_proj",
+      "v_proj"
+    ],
     "qlora_dropout": 0.1,
     "bias": "none",
     "task_type": "CAUSAL_LM"
@@ -69,7 +75,7 @@
     "eval_steps": null,
     "eval_accumulation_steps": 1,
     "gradient_accumulation_steps": 4,
-    "learning_rate": 2e-5,
+    "learning_rate": 2e-05,
     "num_train_epochs": 1,
     "weight_decay": 0.05,
     "lr_scheduler_type": "cosine",
@@ -82,8 +88,9 @@
     "logging_steps": 10,
     "report_to": "wandb",
     "group_by_length": false,
-    "dataloader_drop_last": false,
+    "dataloader_drop_last": true,
     "save_total_limit": 2,
     "optim": "adamw_torch_fused"
-  }
+  },
+  "dataset": "douban"
 }

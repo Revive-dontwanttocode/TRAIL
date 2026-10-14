@@ -1,6 +1,10 @@
 """
 Generate training explanations for the dataset selected in the JSON configuration.
+
+Adapted from the author's `run_data_generation.py` (Zhixi Chen, 2025-08-10) and from the
+post-processing cells of `amazon_baby_process.ipynb`.
 """
+
 
 import argparse
 import json
@@ -20,14 +24,10 @@ import torch
 import pandas as pd
 from tqdm import tqdm
 
-from prompts import (
-    dataset_from_config, normalize_dataset, transform_to_input_prompt,
-    build_amazon_kitchen_user_prompt, transform_amazon_kitchen_to_input_prompt,
-    AMAZON_KITCHEN_SYSTEM_PROMPT,
-)
+from .prompts import transform_to_input_prompt
 
-from src.Common.config import load_config, project_path, write_json
-from src.Common.runtime import environment_record
+from src.common.config import load_config, project_path, write_json
+from src.common.runtime import environment_record
 
 logging.basicConfig(
     level=logging.INFO,
@@ -39,7 +39,7 @@ logging.basicConfig(
 def json_think_tag_info_extraction(response: str) -> tuple:
     """
     Extract the JSON string from the response. This will utilisse the </think> tag to extract the JSON string.
-
+    
     Args:
         response (`str`): The response from the model.
     Returns:
@@ -48,15 +48,15 @@ def json_think_tag_info_extraction(response: str) -> tuple:
     search_offset = 0
     think_tag_end = "</think>"
     think_tag_end_pos = response.rfind(think_tag_end)
-
-    if think_tag_end_pos != -1:  # the tag is found
+    
+    if think_tag_end_pos != -1: # the tag is found
         # Extract the JSON string from the response
         search_offset = think_tag_end_pos + len(think_tag_end)
-
+    
     json_start_pos = response.find('{', search_offset)
     if json_start_pos == -1:
         return None, None
-
+    
     json_candidate_str = response[json_start_pos:]
     try:
         decoder = json.JSONDecoder()
@@ -71,8 +71,7 @@ def json_think_tag_info_extraction(response: str) -> tuple:
             if predict_popularity_score is not None and explanation_of_score is not None:
                 return predict_popularity_score, explanation_of_score
             else:
-                logging.warning(
-                    "JSON string does not contain both 'predict_popularity_score' and 'explanation_of_score'.")
+                logging.warning("JSON string does not contain both 'predict_popularity_score' and 'explanation_of_score'.")
                 return None, None
     except json.JSONDecodeError as e:
         return None, None
@@ -81,10 +80,7 @@ def json_think_tag_info_extraction(response: str) -> tuple:
 
 
 def prepare_vllm_checkpoint(model_name, tokenizer, model_path, local_files_only, dtype=torch.float16):
-    """
-    Save the vocabulary resize once, before starting the vLLM worker.
-    """
-
+    """Save the author's vocabulary resize once, before starting the vLLM worker."""
     model_path = Path(model_path)
     if (model_path / "config.json").exists():
         return str(model_path)
@@ -106,10 +102,7 @@ def prepare_vllm_checkpoint(model_name, tokenizer, model_path, local_files_only,
 
 
 def vllm_sampling_kwargs(inference_param):
-    """
-    Convert the inference parameters to vLLM's SamplingParams arguments.
-    """
-
+    """Translate the author's greedy/sampling switch without changing its intent."""
     sampling = inference_param["do_sample"]
     return {
         "max_tokens": inference_param["max_new_tokens"],
@@ -122,31 +115,29 @@ def vllm_sampling_kwargs(inference_param):
 
 
 def run_model_inference_batch_retry(
-        model_name: str,
-        data_path: str,
-        result_path: str,
-        inference_param: dict,
-        device_map="auto",
-        batch_size: int = 16,
-        max_retry: int = 3,
-        save_batches: int = 10,
-        max_input_tokens: int = 4096,
-        training_set_path=None,
-        generation_backend="transformers",
-        vllm_config=None,
-        local_files_only=False,
-        seed=1025,
-        legacy_generation=None,
-        run_dir=None,
-        dataset_type="kitchen",
+    model_name: str, 
+    data_path: str,
+    result_path: str,
+    inference_param: dict,
+    dataset_type: str,
+    device_map="auto",
+    batch_size: int=16,
+    max_retry: int=3,
+    save_batches: int=10,
+    max_input_tokens: int=4096,
+    training_set_path=None,
+    generation_backend="transformers",
+    vllm_config=None,
+    local_files_only=False,
+    seed=1025,
+    legacy_generation=None,
+    run_dir=None,
 ) -> pd.DataFrame:
-    dataset_type = normalize_dataset(dataset_type)
-    samples_df = pd.read_csv(data_path, dtype={"asin": str})
+    samples_df = pd.read_csv(data_path, dtype={"item_id": str})
     if os.path.exists(result_path):
         result_columns = ["inference_result", "predict_popularity_score", "explanation_of_score"]
-        saved_df = pd.read_csv(result_path, dtype={"asin": str, **{column: str for column in result_columns}})
-        saved_datasets = (set(saved_df["generation_dataset"].dropna())
-                          if "generation_dataset" in saved_df else {"kitchen"})
+        saved_df = pd.read_csv(result_path, dtype={"item_id": str, **{column: str for column in result_columns}})
+        saved_datasets = set(saved_df["generation_dataset"].dropna())
         if saved_datasets != {dataset_type}:
             raise ValueError("Saved explanations use another dataset prompt; choose a new inference_result_path")
         input_columns = [column for column in samples_df if column != "explanation_of_score"]
@@ -154,8 +145,7 @@ def run_model_inference_batch_retry(
             raise ValueError(f"{result_path} does not belong to {data_path}. Use a new result path.")
         samples_df = saved_df
         if "generation_status" not in samples_df:
-            samples_df["generation_status"] = samples_df["inference_result"].notna().map(
-                {True: "finished", False: "pending"})
+            samples_df["generation_status"] = samples_df["inference_result"].notna().map({True: "finished", False: "pending"})
     else:
         samples_df["inference_result"] = None
         samples_df["predict_popularity_score"] = None
@@ -224,10 +214,9 @@ def run_model_inference_batch_retry(
             "versions": {name: version(name) for name in
                          (["transformers", "vllm"] if generation_backend == "vllm" else ["transformers"])},
             "cuda_visible_devices": os.environ.get("CUDA_VISIBLE_DEVICES"),
-            "effective_sampling": vllm_sampling_kwargs(
-                inference_param) if generation_backend == "vllm" else inference_param,
+            "effective_sampling": vllm_sampling_kwargs(inference_param) if generation_backend == "vllm" else inference_param,
         })
-
+    
     ##### 2. Render only inference inputs; the ground-truth score is never included. #####
     prompts = samples_df.apply(
         lambda row: transform_to_input_prompt(row, tokenizer, dataset_type, "explanation"), axis=1,
@@ -239,7 +228,7 @@ def run_model_inference_batch_retry(
         batch_prompts = [prompts[data_idx] for data_idx in batch_indices]
         batch_len = len(batch_prompts)
         batch_results = [None] * batch_len
-
+        
         # record the index which need to inference
         retry_indices = list(range(batch_len))
         retry_prompts = batch_prompts.copy()
@@ -283,7 +272,7 @@ def run_model_inference_batch_retry(
                 # The prompt also contains think tags and JSON-like text.
                 generated_ids = outputs[:, llm_inputs["input_ids"].shape[1]:]
                 batch_responses = tokenizer.batch_decode(generated_ids, skip_special_tokens=True)
-
+            
             # see whether need retry
             next_retry_indices = []
             next_retry_prompts = []
@@ -297,11 +286,10 @@ def run_model_inference_batch_retry(
                     batch_results[idx] = (response.strip(), None, None)
                     next_retry_indices.append(idx)
                     next_retry_prompts.append(retry_prompts[j])
-                    logging.warning(
-                        f"Attempt {attempt + 1} failed to extract JSON from response. Retrying... Index: {idx}, Response: {response}")
+                    logging.warning(f"Attempt {attempt+1} failed to extract JSON from response. Retrying... Index: {idx}, Response: {response}")
             retry_indices = next_retry_indices
             retry_prompts = next_retry_prompts
-
+        
         for data_idx, (resp, score, explanation) in zip(batch_indices, batch_results):
             samples_df.at[data_idx, "inference_result"] = resp
             samples_df.at[data_idx, "predict_popularity_score"] = score
@@ -326,7 +314,7 @@ def run_model_inference_batch_retry(
             with (Path(run_dir) / "generation_batches.jsonl").open("a") as stream:
                 stream.write(json.dumps(metrics) + "\n")
     save_generation_progress(samples_df, result_path, training_set_path)
-
+    
     return samples_df
 
 
@@ -382,8 +370,7 @@ def construct_training_set(raw_samples_df: pd.DataFrame) -> pd.DataFrame:
     raw_samples_df["predict_popularity_score"] = pd.to_numeric(
         raw_samples_df["predict_popularity_score"], errors="coerce"
     )
-    raw_samples_df = raw_samples_df.dropna(subset=["predict_popularity_score", "explanation_of_score"]).reset_index(
-        drop=True)
+    raw_samples_df = raw_samples_df.dropna(subset=["predict_popularity_score", "explanation_of_score"]).reset_index(drop=True)
     valid = [valid_generated_answer(score, explanation) for score, explanation in
              zip(raw_samples_df["predict_popularity_score"], raw_samples_df["explanation_of_score"])]
     raw_samples_df = raw_samples_df.loc[valid].copy()
@@ -398,31 +385,22 @@ def construct_training_set(raw_samples_df: pd.DataFrame) -> pd.DataFrame:
     )
 
     raw_samples_df = raw_samples_df.drop(columns=["predict_popularity_score"])
-    if "movie_description" not in raw_samples_df:
-        description_column = "item_description" if "item_description" in raw_samples_df else "product_description"
-        raw_samples_df = raw_samples_df.rename(columns={description_column: "movie_description"})
     return raw_samples_df
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(
-        description="Generate TRAIL training explanations using the configured dataset prompt.")
+    parser = argparse.ArgumentParser(description="Generate TRAIL training explanations using the configured dataset prompt.")
     parser.add_argument("--config", type=str, required=True, help="Path of the JSON config file.")
-    parser.add_argument("--device", type=str,
-                        help="The device to load the model on. Default is `device_map` in the config.")
+    parser.add_argument("--device", type=str, help="The device to load the model on. Default is `device_map` in the config.")
     parser.add_argument("--run-dir", type=str, help="Directory for configuration and generation run records.")
     args = parser.parse_args()
-
     config = load_config(project_path(args.config))
-    config["dataset"] = dataset_from_config(config, default="baby")
-    config["model_name"] = config.get("model_name", "TRAIL")
 
     data_path = project_path(config["data"]["processed_data_path"])
     result_path = project_path(config["data"]["inference_result_path"])
     training_set_path = project_path(config["data"]["training_set_path"])
     result_path.parent.mkdir(parents=True, exist_ok=True)
     training_set_path.parent.mkdir(parents=True, exist_ok=True)
-
     # Different launcher names must not write concurrently to the same output CSV.
     lock = result_path.with_suffix(".lock").open("w")
     try:
@@ -468,8 +446,7 @@ if __name__ == "__main__":
     logging.info("Inference completed and results saved to {}".format(result_path))
 
     training_set_df = construct_training_set(result_df)
-    logging.info(
-        f"Training set saved to {training_set_path}. {len(training_set_df)} of {len(result_df)} samples have an explanation.")
+    logging.info(f"Training set saved to {training_set_path}. {len(training_set_df)} of {len(result_df)} samples have an explanation.")
 
     configured_device = config["device_map"]
     if isinstance(configured_device, dict):
@@ -479,6 +456,8 @@ if __name__ == "__main__":
                           ("cuda:0" if torch.cuda.is_available() else "cpu")
                           if requested_device == "auto" else requested_device)
     record = {
+        "model": "TRAIL",
+        "status": "complete",
         "task": "TRAIL training explanation generation",
         "dataset": config["dataset"],
         "dataset_version": config["dataset_version"],
@@ -494,8 +473,4 @@ if __name__ == "__main__":
                      (["transformers", "vllm"] if backend == "vllm" else ["transformers"])},
     }
     write_json(run_dir / "results.json", record)
-    if args.run_dir:
-        from src.Common.export_outputs import export
-
-        export(run_dir)
     lock.close()

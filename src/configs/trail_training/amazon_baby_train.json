@@ -1,20 +1,14 @@
 {
   "extends": "douban_train.json",
-  "dataset_path": "", // TODO: please define yourself
-  "dataset_version": "Amazon2014HomeAndKitchenOriginalPeriods-DoubanSchema-20261012",
-  "dataset_type": "baby",
-  "wandb_config": {
-    "entity": "",
-    "project": "TRAIL",
-    "name": null,
-    "mode": "online"
-  },
+  "dataset": "baby",
+  "dataset_path": "data/trail_amazon_baby/training.csv",
   "huggingface_model_loading_config": {
-    "device_map": {"": "cuda:0"}
+    "device_map": {
+      "": "cuda:0"
+    }
   },
   "training_config": {
     "per_device_train_batch_size": 4,
-    "gradient_accumulation_steps": 8,
-    "dataloader_drop_last": true
+    "gradient_accumulation_steps": 8
   }
 }

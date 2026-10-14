@@ -1,10 +1,4 @@
-# For the conda environment py311recsys (Python 3.11):
-#   conda create -n py311recsys python=3.11 && conda activate py311recsys && pip install -r requirements.txt
-# The reported results were produced with these versions under Python 3.10.
-# Historical runs used torch 2.13.0+cu130; dataset preparation used 2.11.0+cu128.
-# vLLM 0.11.0 requires torch 2.8.0. Use the CUDA 12.8 wheels on this H20 host:
-# python -m pip install -r requirements.txt --extra-index-url https://download.pytorch.org/whl/cu128
-# The original run records remain unchanged.
+# Python 3.11. CUDA wheel installation is documented in README.md.
 numpy==2.2.6
 scipy==1.15.3
 torch==2.8.0
@@ -31,3 +25,5 @@ dirtyjson==1.0.8
 matplotlib==3.11.2
 seaborn==0.13.2
 requests==2.34.2
+# Optional explanation judge.
+openai==3.29.0

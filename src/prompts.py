@@ -1,9 +1,4 @@
-"""TRAIL prompts for douban, beauty, baby, and kitchen datasets.
-
-Stages are training, inference, and explanation. Description fields follow the
-dataset schema: baby and beauty use product_description outside training;
-all other inputs use movie_description.
-"""
+"""TRAIL system and user prompts, selected by dataset and stage."""
 
 
 DOUBAN_SYSTEM_PROMPT = """You are a movie popularity analyst. Your task is to predict a movie's popularity score based on its features and historical data, providing a structured explanation.
@@ -271,12 +266,8 @@ def build_user_prompt(row: dict, dataset: str, stage: str) -> str:
     else:
         template = AMAZON_USER_TEMPLATE
 
-    description_field = "movie_description"
-    if dataset in ("baby", "beauty") and stage != "training":
-        description_field = "product_description"
-
     return template.format(
-        description=row[description_field],
+        description=row["item_description"],
         history=row["historical_popularity_trends"],
         timestamp=row["predict_timestamp"],
     )
@@ -294,3 +285,42 @@ def transform_to_input_prompt(
         add_generation_prompt=True,
     )
 
+
+EXPLANATION_JUDGE_SYSTEM_PROMPT = """
+### Instruction:
+Your goal is to strictly and objectively assess the explanation's quality. Your evaluations must clearly distinguish between strong, average, and poor explanations.
+You will be given the true historical trend data, item description and metadata, the prediction timestamp, the ground-truth popularity score, the model’s predicted popularity score, and its generated explanation.
+Please rate the explanation from 4 perspectives (scores between 0 and 1), and give a short comment: 
+
+1. Truthfulness of historical trend
+Look at how the explanation describes the historical trend — does it accurately reflect the real trend’s direction, peaks, and fluctuations? Give a score between 0 and 1 for how truthful it is with respect to the historical trend, where 1 means completely accurate” and 0 means completely inconsistent.
+
+2. Truthfulness of item metadata
+Look at the metadata — are the mentioned product attributes (such as item name, item special feature, etc.) actually present well in the provided item description? Give a score between 0 and 1 for how truthful it is with respect to the metadata, where 1 means completely accurate” and 0 means completely inconsistent.” 
+
+3. Predictiveness / Consistency
+Judge whether the explanation's reasoning about future popularity makes sense given the past trend. If the trend shows steady growth and the explanation predicts continued or strong demand, that’s consistent and should get a high score. If the explanation predicts something that clearly contradicts the trend without any justification, that’s inconsistent and should get a low score.
+Rate it from 0 to 1, where 1 means highly consistent and reasonable. 
+
+4. Logic & Language Quality
+Give a score from 0 to 1 based on how logical, consistent, and well-written the explanation is.
+Do not judge formatting or section structure; focus only on clarity, coherence, and internal logic. 
+
+Return your output in JSON like:
+
+{
+  "trend_truthfulness_score": "...", 
+  "metadata_truthfulness_score": "...", 
+  "predictiveness_score": "...",
+  "logic_score": "...",
+  "comment": "…"
+}"""
+
+EXPLANATION_JUDGE_USER_TEMPLATE = """### Input:
+<ItemDescription> {item_description} </ItemDescription>
+<HistoricalPopularityTrend> {historical_trend} </HistoricalPopularityTrend>
+<PredictedTimestamp> {predicted_timestamp} </PredictedTimestamp>
+<TruePopularityScore> {true_popularity_score} </TruePopularityScore>
+<PredictPopularityScore> {predict_popularity_score} </PredictPopularityScore>
+<GeneratedExplanation> {generated_explanation} </GeneratedExplanation>
+"""

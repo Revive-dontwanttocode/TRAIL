@@ -1,7 +1,6 @@
-"""Repository paths, JSON configs with inheritance, checksums and atomic JSON writes."""
+"""Repository paths, inherited JSON configuration and atomic JSON writes."""
 
 import copy
-import hashlib
 import json
 from pathlib import Path
 

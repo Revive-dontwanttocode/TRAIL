@@ -6,20 +6,18 @@ Author: Zhixi Chen
 Date: 2025/06/18
 """
 
-import torch
 from transformers import AutoTokenizer
 from datasets import load_dataset
 
-from data_prepare_utils import tokenize_data_sample
+from .data_prepare_utils import tokenize_data_sample
 
 
 def prepare_data_for_finetune(dataset_path: str, tokenizer: AutoTokenizer, seed: int, dataset_type: str,
-                              is_contrastive=False, max_length: int = 4096, split_ratio: int = 0.2):
+                              is_contrastive=False, max_length: int = 4096, split_ratio: float = 0.2):
     """
     Load the dataset from a CSV file, tokenize the data samples, and return a transformer-compatible dataset.
     """
     ##### 1. Load and tokenize the dataset #####
-    # dataset = load_dataset("csv", data_files=dataset_path, split="train").select(range(5)) # .select just use for testing
     dataset = load_dataset("csv", data_files=dataset_path, split="train")
     split_dataset = dataset.train_test_split(test_size=split_ratio, seed=seed)
     train_dataset = split_dataset['train']

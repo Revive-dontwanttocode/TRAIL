@@ -7,7 +7,6 @@ Date: 2025-06-22
 """
 
 from transformers import Trainer
-from transformers.trainer_pt_utils import LabelSmoother
 
 import torch.nn.functional as F
 import torch
@@ -24,7 +23,9 @@ import matplotlib.pyplot as plt
 
 from sklearn.manifold import TSNE
 
-from contrastive_projection_head import ContrastiveProjectionHead
+from src.evaluation.language_model import causal_lm_token_metrics
+
+from .contrastive_projection_head import ContrastiveProjectionHead
 
 logging.basicConfig(
     level=logging.INFO,
@@ -91,8 +92,10 @@ class MovieRecLLMTrainer(Trainer):
             description_similarity_fn: Function to compute description similarity.
             **kwargs: Keyword arguments for the base Trainer class.
         """
+        # Trainer registers callbacks and the tokenizer as instance attributes.
+        kwargs.setdefault("compute_metrics", self.compute_metrics)
+        kwargs.setdefault("processing_class", tokenizer)
         super().__init__(*args, **kwargs)
-        self.tokenizer = tokenizer
         self.encoder = encoder
         self.contrastive_learning_config = contrastive_learning_config
         self.loss_weight_config = loss_weight_config

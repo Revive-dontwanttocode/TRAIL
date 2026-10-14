@@ -1,0 +1,5 @@
+{
+  "extends": "douban_train.json",
+  "dataset": "beauty",
+  "dataset_path": "data/trail_amazon_beauty/training.csv"
+}

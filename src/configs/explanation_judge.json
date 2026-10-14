@@ -1,0 +1,5 @@
+{
+  "input_path": "runs/douban_inference/inference_result.csv",
+  "model": "gpt-4.1-mini",
+  "temperature": 0.3
+}

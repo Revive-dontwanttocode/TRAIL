@@ -3,10 +3,9 @@
   "dataset": "baby",
   "dataset_version": "not_provided",
   "data": {
-    "processed_data_path": "data/trail_amazon_baby/amazon_baby_processed_data.csv", // TODO: please define yourself
-    "inference_result_path": "data/trail_amazon_baby/amazon_baby_explanation_responses.csv", // TODO: please define yourself
-    "training_set_path": "data/trail_amazon_baby/amazon_baby_training.csv", // TODO: please define yourself
-    "validation_set_path": "data/trail_amazon_baby/amazon_baby_validation.csv", // TODO: please define yourself
-  },
-  "seed": 1025
+    "processed_data_path": "data/trail_amazon_baby/processed.csv",
+    "inference_result_path": "data/trail_amazon_baby/explanation_responses.csv",
+    "training_set_path": "data/trail_amazon_baby/training.csv",
+    "seed": 1025
+  }
 }

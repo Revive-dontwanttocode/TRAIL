@@ -1,0 +1,21 @@
+{
+  "dataset": "douban",
+  "files": {
+    "training": {
+      "input_path": "data/trail_douban/source/training.csv",
+      "output_path": "data/trail_douban/processed.csv",
+      "columns": {
+        "item_id": "movieid",
+        "item_description": "movie_description"
+      }
+    },
+    "inference": {
+      "input_path": "data/trail_douban/source/inference.csv",
+      "output_path": "data/trail_douban/inference.csv",
+      "columns": {
+        "item_id": "movieid",
+        "item_description": "movie_description"
+      }
+    }
+  }
+}

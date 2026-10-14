@@ -1,7 +1,7 @@
 """
 Evaluate the model performance based on the provided evaluation results.
 
-The metric formulas are the shared ones of this project in `src/Evaluation`,
+The metric formulas are the shared ones of this project in `src/evaluation`,
 and every user gets the same recommendation list without removing the
 items the user has seen, which is the evaluation protocol of this project.
 
@@ -15,10 +15,10 @@ import os
 import numpy as np
 import pandas as pd
 
-from src.Common.config import project_path, write_json
-from src.Evaluation.metrics import metrics
+from src.common.config import project_path, write_json
+from src.evaluation.metrics import metrics
 
-from data_prepare_utils import resolve_trend
+from .data_prepare_utils import resolve_trend
 
 
 def clean_inferenced_dataframe(inferenced_df: pd.DataFrame) -> pd.DataFrame:
@@ -124,11 +124,10 @@ def save_inference_results(result_df: pd.DataFrame, output_dir, item_column: str
 
     save_ranking(cleaned_inferenced_df, output_dir, item_column)
     if evaluation_config["user_interaction_path"]:
-        user_interact_df = pd.read_csv(project_path(evaluation_config["user_interaction_path"]))
-        # The Kitchen benchmark reserves item zero for padding; TRAIL keeps original IDs.
-        item_id_offset = evaluation_config.get("item_id_offset", 0)
-        if item_id_offset:
-            user_interact_df[evaluation_config["item_column"]] += item_id_offset
+        user_interact_df = pd.read_csv(
+            project_path(evaluation_config["user_interaction_path"]),
+            dtype={evaluation_config["item_column"]: str},
+        )
         summary["metrics"] = userwise_metric_calculation(
             cleaned_inferenced_df,
             user_interact_df,
