@@ -5,7 +5,6 @@ __pycache__/
 /runs/
 /dist/
 data/
-AGENTS.md
 wandb/
 *.log
 *.safetensors
