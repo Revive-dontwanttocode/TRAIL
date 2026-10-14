@@ -90,7 +90,7 @@ CONFIG=src/configs/explanation_generation/amazon_baby_data_generation.json RUN_N
 CONFIG=src/configs/explanation_generation/amazon_beauty_data_generation.json RUN_NAME=beauty_explanations bash scripts/generate_explanations.sh
 ```
 
-**Ready for training:** your dataset directory should now contain `training.csv` with usable explanations and `inference.csv` with prediction candidates. The supplied training and inference configurations point to these files. Continue to [Training](#training).
+**Ready for training:** your dataset directory should now contain `training.csv` with usable explanations and `inference.csv` with prediction candidates. The supplied training and inference configurations point to these files.
 
 ## 🚀 Training
 
