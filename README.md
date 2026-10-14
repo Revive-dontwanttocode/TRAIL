@@ -126,3 +126,7 @@ Outputs are saved in `runs/<RUN_NAME>/`: `inference_result.csv` contains predict
   doi = {10.1145/3774904.3792616}
 }
 ```
+
+## 🙏 Acknowledgments
+
+This research is supported by the RIE2025 Industry Alignment Fund – Industry Collaboration Projects (IAF-ICP) (Award I2301E0026), administered by A*STAR, as well as supported by Alibaba Group and NTU Singapore through Alibaba-NTU Global e-Sustainability CorpLab (ANGEL). This work is supported by Jinan-NTU Green Technology Research Institute (GreenTRI), and the Joint NTU-UBC Research Centre of Excellence in Active Living for the Elderly (LILY), Nanyang Technological University, Singapore.
