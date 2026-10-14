@@ -41,21 +41,13 @@ Prompts are defined in [`src/prompts.py`](src/prompts.py).
 
 ## 📊 Data preparation and explanation generation
 
-Prepare **Douban**, **Amazon Baby**, or **Amazon Beauty** in two steps: normalize your
-preprocessed CSVs, then generate training explanations. The final outputs are
-`training.csv` for fine-tuning and `inference.csv` for prediction.
+Prepare **Douban**, **Amazon Baby**, or **Amazon Beauty** in two steps: normalize your preprocessed CSVs, then generate training explanations. We trained `TRAIL` on three datasets:
 
-| Dataset | `dataset` value | Data directory | Training config | Inference config |
-| --- | --- | --- | --- | --- |
-| Douban | `douban` | `data/trail_douban/` | [`douban_train.json`](src/configs/trail_training/douban_train.json) | [`douban_batch.json`](src/configs/batch_inference/douban_batch.json) |
-| Amazon Baby | `baby` | `data/trail_amazon_baby/` | [`amazon_baby_train.json`](src/configs/trail_training/amazon_baby_train.json) | [`amazon_baby_batch.json`](src/configs/batch_inference/amazon_baby_batch.json) |
-| Amazon Beauty | `beauty` | `data/trail_amazon_beauty/` | [`amazon_beauty_train.json`](src/configs/trail_training/amazon_beauty_train.json) | [`amazon_beauty_batch.json`](src/configs/batch_inference/amazon_beauty_batch.json) |
+* **Douban Movie**: This is a private dataset that we cannot share till time fruits are available. It contains user-movie interactions and movie metadata.
+* **Amazon Baby:** This dataset is publicly available and can be downloaded from [Amazon Reviews 2023 Dataset](https://amazon-reviews-2023.github.io/).
+* **Amazon Beauty:** This dataset is publicly available and can be downloaded from [Amazon Reviews 2023 Dataset](https://amazon-reviews-2023.github.io/).
 
-Use the matching configurations for training and inference; those examples below use Douban.
-
-Datasets are not bundled with the repository. Supply preprocessed training and inference
-CSVs with the original popularity values, histories, and time splits; the preparation
-step standardizes column names without computing popularity or rebuilding splits.
+Datasets are not bundled with the repository. Supply preprocessed training and inference CSVs with the original popularity values, histories, and time splits; the preparation step standardizes column names without computing popularity or rebuilding splits.
 
 ### 1. Normalize the source CSVs
 
