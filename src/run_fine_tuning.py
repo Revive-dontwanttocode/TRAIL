@@ -9,21 +9,29 @@ import logging
 import wandb
 import torch
 
-from peft import LoraConfig, TaskType, get_peft_model, prepare_model_for_kbit_training, PeftModel, \
-    get_peft_model_state_dict
-from transformers import TrainingArguments, AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig, \
-    EarlyStoppingCallback
+from peft import LoraConfig, TaskType, get_peft_model, prepare_model_for_kbit_training, PeftModel, get_peft_model_state_dict
+from transformers import TrainingArguments, AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig, EarlyStoppingCallback
 from sentence_transformers import SentenceTransformer
 
+from src.Common.config import load_config, project_path, write_json
+from src.Common.runtime import environment_record
+
 from data_prepare import prepare_data_for_finetune
+from prompts import dataset_from_config
 from movie_rec_llm_data_collator import DataCollatorForMovieRec
 from movie_rec_llm_trainer import MovieRecLLMTrainer
 from loss_calculate_util import compute_trend_similarity, compute_movie_description_similarity, compute_score_similarity
 
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
+
 ##### Constants and configurations for the fine-tuning process #####
 RANDOM_SEED = 1025
 FINE_TUNING_MODEL_NAME = "deepseek-ai/DeepSeek-R1-Distill-Qwen-7B"
-# FINE_TUNING_MODEL_NAME = "meta-llama/Llama-3.1-8B"
 
 CURRENT_TIMESTAMP = time.strftime("%Y%m%d_%H%M%S", time.localtime())
 
@@ -115,7 +123,7 @@ logging.basicConfig(
 )
 
 
-def init_wandb(entity, project, name, config):
+def init_wandb(entity, project, name, config, mode, dir):
     """
     Initialize Weights & Biases (wandb) for experiment tracking, including model hyperparameters, loss curves, and other metrics.
     Args:
@@ -123,6 +131,8 @@ def init_wandb(entity, project, name, config):
         project (`str`): The name of the wandb project.
         name (`str`): The name of the run.
         config (`dict`): Other configuration dictionary containing hyperparameters and other settings for the run.
+        mode (`str`): The wandb mode, which is `online`, `offline` or `disabled`.
+        dir (`str`): The directory where wandb saves its files.
     """
 
     run = wandb.init(
@@ -131,6 +141,8 @@ def init_wandb(entity, project, name, config):
         name=name,
         config=config,
         resume="allow",
+        mode=mode,
+        dir=dir,
     )
 
     return run
@@ -146,6 +158,7 @@ def run_finetune(
         contrastive_learning_config,
         loss_weight_config,
         dataset_type,
+        sentence_encoder_name,
         peft_type="lora",
         resume_from_checkpoint=False,
         lora_adapter_resume_path=""):
@@ -219,8 +232,8 @@ def run_finetune(
         tokenizer = AutoTokenizer.from_pretrained(lora_adapter_resume_path, use_fast=True)
         base_model = AutoModelForCausalLM.from_pretrained(
             model_name,
-            torch_dtype=torch.bfloat16,  # same as previous fine-tuning
-            device_map="auto",
+            torch_dtype=model_loading_config["dtype"],  # same as previous fine-tuning
+            device_map=model_loading_config["device_map"],
         )
         base_model.gradient_checkpointing_enable()
         if getattr(base_model, "enable_input_require_grads", None):
@@ -237,11 +250,11 @@ def run_finetune(
     training_set, val_set = prepare_data_for_finetune(
         dataset_path=dataset_path,
         tokenizer=tokenizer,
-        seed=RANDOM_SEED,
+        seed=training_config["seed"],
         dataset_type=dataset_type,
-        is_contrastive=HUGGINGFACE_MODEL_LOADING_CONFIG['is_contrastive'],  # whether to use contrastive learning
+        is_contrastive=model_loading_config['is_contrastive'],  # whether to use contrastive learning
         max_length=model_loading_config["max_seq_length"],  # max length of the input sequence
-        split_ratio=HUGGINGFACE_MODEL_LOADING_CONFIG['split_ratio']
+        split_ratio=model_loading_config['split_ratio']
     )
     logging.info(
         f"Dataset loaded from {dataset_path}. Number of training samples: {len(training_set)}. Number of validation samples: {len(val_set)}")
@@ -255,7 +268,7 @@ def run_finetune(
         num_train_epochs=training_config["num_train_epochs"],
         weight_decay=training_config["weight_decay"],
         lr_scheduler_type=training_config["lr_scheduler_type"],
-        max_grad_norm=1,
+        max_grad_norm=training_config["max_grad_norm"],
         warmup_ratio=training_config["warmup_ratio"],
         save_steps=training_config["save_steps"],
         bf16=training_config["bf16"],
@@ -272,11 +285,11 @@ def run_finetune(
         dataloader_drop_last=training_config["dataloader_drop_last"],
         group_by_length=training_config["group_by_length"],
         logging_first_step=True,
-        metric_for_best_model="eval_loss",
+        # metric_for_best_model="eval_loss",
         save_strategy="steps",
-        eval_strategy="steps",
-        eval_steps=training_config['save_steps'],
-        load_best_model_at_end=True,
+        # eval_strategy="steps",
+        # eval_steps=training_config['save_steps'],
+        # load_best_model_at_end=True,
     )
 
     ##### 4. Set the data collator #####
@@ -338,7 +351,7 @@ def run_finetune(
     logging.info(f"# of trainable params: {len(trainable)}")
     logging.info(f"trainable params: {trainable}")
 
-    sentence_encoder = SentenceTransformer("all-mpnet-base-v2")
+    sentence_encoder = SentenceTransformer(sentence_encoder_name)
     sentence_encoder.eval()
 
     trainer = MovieRecLLMTrainer(
@@ -347,15 +360,15 @@ def run_finetune(
         encoder=sentence_encoder,
         data_collator=data_collator,
         train_dataset=training_set,
-        eval_dataset=val_set,
+        # eval_dataset=val_set
         contrastive_learning_config=contrastive_learning_config,
         loss_weight_config=loss_weight_config,
         trend_similarity_fn=compute_trend_similarity,
         description_similarity_fn=compute_movie_description_similarity,
         score_similarity_fn=compute_score_similarity,
         tokenizer=tokenizer,
-        is_contrastive=HUGGINGFACE_MODEL_LOADING_CONFIG['is_contrastive'],  # whether to use contrastive learning
-        callbacks=[EarlyStoppingCallback(early_stopping_patience=3)],
+        is_contrastive=model_loading_config['is_contrastive'],  # whether to use contrastive learning
+        # callbacks=[EarlyStoppingCallback(early_stopping_patience=3)],
     )
 
     ##### 8. Start the fine-tuning process #####
@@ -370,68 +383,116 @@ def run_finetune(
     )
     tokenizer.save_pretrained(training_config["output_dir"])
     logging.info("Fine-tuning process completed successfully.")
+    return trainer
 
 
 if __name__ == "__main__":
     ##### 1. Set up the argument parser and arguments #####
     parser = argparse.ArgumentParser(description="Run fine-tuning for the DeepSeek MovieRecLLM model.")
-    parser.add_argument("--lr", type=float, default=2e-5,
-                        help="The learning rate of the model to be fine-tuned. Default is 2e-5.")
-    parser.add_argument("--batch_size", type=int, default=8, help="The batch size for training per GPU. Default is 8.")
-    parser.add_argument("--peft_type", type=str, default="lora", choices=["lora", "qlora"],
-                        help="The type of PEFT to use. Default is 'lora'.")
-    parser.add_argument("--dataset", type=str, help="Path to the training dataset for fine-tuning.")
-    parser.add_argument("--is_contrastive", type=bool, choices=[True, False], default=True,
-                        help="Whether to use contrastive learning. Default is True.")
-    parser.add_argument("--resume_from_checkpoint", type=bool, choices=[True, False], default=False,
-                        help="Whether to resume from the last checkpoint. Default is False.")
-    parser.add_argument("--dataset_type", type=str, choices=["douban", "beauty", "baby"], default="douban",
-                        help="Type of dataset. Default is douban.")
+    parser.add_argument("--config", type=str, required=True, help="Path of the JSON config file.")
+    parser.add_argument("--run-dir", type=str, required=True, help="The directory of this run. It must not exist yet.")
+    parser.add_argument("--device", type=str,
+                        help="The device to load the model on. Default is `device_map` in the config.")
 
     args = parser.parse_args()
+    logging.info(f"Set arguments: {vars((args))}")
 
-    training_config["learning_rate"] = args.lr if args.lr else training_config["learning_rate"]
-    training_config["per_device_train_batch_size"] = args.batch_size if args.batch_size else training_config[
-        "per_device_train_batch_size"]
+    ##### 2. Load the constants and configurations for the fine-tuning process #####
+    config = load_config(project_path(args.config))
+    run_dir = project_path(args.run_dir)
+    os.makedirs(run_dir)
+
+    RANDOM_SEED = config["random_seed"]
+    FINE_TUNING_MODEL_NAME = config["fine_tuning_model_name"]
+    WANDB_CONFIG = config["wandb_config"]
+    HUGGINGFACE_MODEL_LOADING_CONFIG = copy.deepcopy(config["huggingface_model_loading_config"])
+    LORA_CONFIG = config["lora_config"]
+    QLORA_CONFIG = config["qlora_config"]
+    QLORA_BNB_CONFIG = copy.deepcopy(config["qlora_bnb_config"])
+    CONTRASTIVE_LEARNING_CONFIG = config["contrastive_learning_config"]
+    LOSS_WEIGHT_CONFIG = config["loss_weight_config"]
+    training_config = copy.deepcopy(config["training_config"])
+
+    # the JSON config stores the names of the torch data types
+    HUGGINGFACE_MODEL_LOADING_CONFIG["dtype"] = getattr(torch, HUGGINGFACE_MODEL_LOADING_CONFIG["dtype"])
+    QLORA_BNB_CONFIG["bnb_4bit_compute_dtype"] = getattr(torch, QLORA_BNB_CONFIG["bnb_4bit_compute_dtype"])
+    if args.device:
+        HUGGINGFACE_MODEL_LOADING_CONFIG["device_map"] = {"": args.device}
+
+    wandb_name = WANDB_CONFIG["name"] if WANDB_CONFIG["name"] else f"{run_dir.parent.name}/{run_dir.name}"
+    training_config["output_dir"] = str(run_dir / "adapter")  # output directory for the fine-tuned model
+    training_config["seed"] = RANDOM_SEED  # random seed for reproducibility
+    training_config["run_name"] = wandb_name  # the running name
     finetune_model_name = FINE_TUNING_MODEL_NAME
-    dataset_path = f""
+    dataset_path = str(project_path(config["dataset_path"]))
 
-    ##### 2. Initialize Weights & Biases (wandb) for experiment tracking #####
+    ##### 3. Record the configurations and the environment of this run #####
+    device = torch.device(args.device if args.device else "cuda:0" if torch.cuda.is_available() else "cpu")
+    start_time = time.time()
+    results = {
+        "model": "TRAIL",
+        "status": "running",
+        "config": config,
+        "seed": RANDOM_SEED,
+        "dataset_version": config["dataset_version"],
+        "environment": environment_record(device),
+    }
+    write_json(run_dir / "config.json", config)
+    write_json(run_dir / "results.json", results)
+
+    ##### 4. Initialize Weights & Biases (wandb) for experiment tracking #####
     init_wandb(
         WANDB_CONFIG["entity"],
         WANDB_CONFIG["project"],
-        WANDB_CONFIG["name"],
+        wandb_name,
         {
             "training_config": training_config,
             "epochs": training_config["num_train_epochs"],
             "dataset": dataset_path,
-            "lora_config": LORA_CONFIG if args.peft_type == "lora" else QLORA_CONFIG,
+            "lora_config": LORA_CONFIG if config["peft_type"] == "lora" else QLORA_CONFIG,
             "contrastive_learning_config": CONTRASTIVE_LEARNING_CONFIG,
             "loss_weight_config": LOSS_WEIGHT_CONFIG,
-            "peft_type": args.peft_type,  # use the peft type from the command line argument
+            "peft_type": config["peft_type"],
             "finetune_model_name": finetune_model_name,
             "dataset_path": dataset_path,
-        }
+        },
+        mode=WANDB_CONFIG["mode"],
+        dir=str(run_dir),
     )
 
-    ##### 3. Run the fine-tuning process #####
+    ##### 5. Run the fine-tuning process #####
     logging.info("Call run_finetune() function to start the finetuning process...")
-    run_finetune(
+    trainer = run_finetune(
         model_name=finetune_model_name,
         dataset_path=dataset_path,
         training_config=training_config,
         model_loading_config=HUGGINGFACE_MODEL_LOADING_CONFIG,
-        peft_config=LORA_CONFIG if args.peft_type == "lora" else QLORA_CONFIG,
+        peft_config=LORA_CONFIG if config["peft_type"] == "lora" else QLORA_CONFIG,
         qlora_bnb_config=QLORA_BNB_CONFIG,
         contrastive_learning_config=CONTRASTIVE_LEARNING_CONFIG,
         loss_weight_config=LOSS_WEIGHT_CONFIG,
-        dataset_type=args.dataset_type,
-        peft_type=args.peft_type,  # use the peft type from the command line argument
-        resume_from_checkpoint=False,  # whether to resume from the last checkpoint or not, default is False
-        lora_adapter_resume_path="",
+        dataset_type=dataset_from_config(config),
+        sentence_encoder_name=config["sentence_encoder_name"],
+        peft_type=config["peft_type"],
+        resume_from_checkpoint=config["resume_from_checkpoint"],
+        # whether to continue from a trained LoRA adapter or not
+        lora_adapter_resume_path=str(project_path(config["lora_adapter_resume_path"])),
     )
     logging.info("Fine-tuning process completed successfully. Check the wandb dashboard for more details.")
+    wandb.finish()
 
-    ##### 4. Clean up resources #####
+    ##### 6. Record the results of this run #####
+    trainer.state.save_to_json(str(run_dir / "trainer_state.json"))
+    results.update(
+        status="complete",
+        training_samples=len(trainer.train_dataset),
+        global_steps=trainer.state.global_step,
+        adapter_path=training_config["output_dir"],
+        elapsed_seconds=time.time() - start_time,
+    )
+    write_json(run_dir / "results.json", results)
+
+    ##### 7. Clean up resources #####
     gc.collect()
     torch.cuda.empty_cache()
+

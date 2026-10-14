@@ -1,3 +1,11 @@
+"""
+MovieRecLLMTrainer class.
+This Trainer class is used to finetune the LLM model. Its fulfill the design of our loss function.
+
+Author: Zhixi Chen
+Date: 2025-06-22
+"""
+
 from transformers import Trainer
 from transformers.trainer_pt_utils import LabelSmoother
 
@@ -92,17 +100,26 @@ class MovieRecLLMTrainer(Trainer):
         self.score_similarity_fn = score_similarity_fn
         self.description_similarity_fn = description_similarity_fn
         self.is_contrastive = is_contrastive
+
+        # `compute_loss` already averages one batch. Without this, the Trainer of the pinned transformers
+        # version does not divide the loss by `gradient_accumulation_steps` for a PEFT model.
+        self.model_accepts_loss_kwargs = False
         hidden_size = getattr(self.model.config, "hidden_size", None)
         if hidden_size is None:
             hidden_size = getattr(self.model.config, "hidden_dim", None)
 
         device = next(self.model.parameters()).device
         if self.is_contrastive:
-            self.model.projection_head = ContrastiveProjectionHead(in_dim=hidden_size, out_dim=256, dropout=0.1).to(
-                device)
+            self.model.projection_head = ContrastiveProjectionHead(
+                in_dim=hidden_size,
+                out_dim=self.contrastive_learning_config["projection_out_dim"],
+                dropout=self.contrastive_learning_config["projection_dropout"]
+            ).to(device)
+
         # locate popularity score position
-        self.prefix_tokens = self.tokenizer.encode('"predict_popularity_score": "', add_special_tokens=False)
-        self.suffix_tokens = self.tokenizer.encode('"', add_special_tokens=False)[0]
+        # `self.tokenizer` logs a deprecation warning on every access in the pinned transformers version
+        self.prefix_tokens = self.processing_class.encode('"predict_popularity_score": "', add_special_tokens=False)
+        self.suffix_tokens = self.processing_class.encode('"', add_special_tokens=False)[0]
 
     def compute_loss(self, model, inputs, return_outputs=False, **kwargs):
         ##### 0. Prepare the computational parameters #####
@@ -113,36 +130,24 @@ class MovieRecLLMTrainer(Trainer):
         infoNCE_temperature = self.contrastive_learning_config["infoNCE_temperature"]
         hard_negative_mining_top_N = self.contrastive_learning_config["hard_negative_mining_top_N"]
         similarity_weight = self.contrastive_learning_config["similarity_weight"]
-        exp_start_token_id = self.tokenizer.convert_tokens_to_ids("<exp_start>")
-        exp_end_token_id = self.tokenizer.convert_tokens_to_ids("<exp_end>")
+        exp_start_token_id = self.processing_class.convert_tokens_to_ids("<exp_start>")
+        exp_end_token_id = self.processing_class.convert_tokens_to_ids("<exp_end>")
 
         if self.state.global_step % 100 == 0:
-            logging.info(f"fisrt labels: {inputs['labels'][:, -15:]}")
+            logging.info(f"First labels: {inputs['labels'][:, -15:]}")
 
         ##### 1. Get the model output logits or hidden_states #####
         outputs = model(
             input_ids=inputs["input_ids"],
             attention_mask=inputs["attention_mask"],
+            labels=inputs["labels"],
             output_hidden_states=True,
         )
 
         last_hidden_states = outputs.hidden_states[-1]
-        logits = outputs.logits
-        labels = inputs["labels"]
-        valid = labels.ne(-100)
-        num_valid = valid.sum()
-        ##### 2. Calculate the score prediction loss by CrossEntropyLoss #####
 
-        score_pred_loss = 0.0
-        if num_valid == 0:
-            score_pred_loss = logits[..., 0].sum() * 0.0
-        else:
-            vocab = logits.size(-1)
-            score_pred_loss = F.cross_entropy(
-                logits[valid].view(-1, vocab),
-                labels[valid].view(-1),
-                reduction="mean",
-            )
+        ##### 2. Calculate the score prediction loss by CrossEntropyLoss (just use teacher-forcing) #####
+        score_pred_loss = outputs.loss
         logging.info(f"The value of score_pred_loss: {score_pred_loss}")
         logging.info(f"Can the score_pred_loss be back-propagated? {score_pred_loss.requires_grad}")
         logging.info(f"Gradient function: {score_pred_loss.grad_fn}")
@@ -168,14 +173,19 @@ class MovieRecLLMTrainer(Trainer):
                     title="Normalized Embeddings",
                     step=self.state.global_step
                 )
-        logging.info(f"The value of contrastive_loss: {contrastive_loss}")
-        logging.info(f"Can the contrastive_loss be back-propagated? {contrastive_loss.requires_grad}")
-        logging.info(f"Gradient function of contrastive_loss: {contrastive_loss.grad_fn}")
+            logging.info(f"The value of contrastive_loss: {contrastive_loss}")
+            logging.info(f"Can the contrastive_loss be back-propagated? {contrastive_loss.requires_grad}")
+            logging.info(f"Gradient function of contrastive_loss: {contrastive_loss.grad_fn}")
 
         #### 4. Calculate Record the loss into wandb #####
         final_loss = 0.0
         if self.is_contrastive:
-            w1, w2 = self.loss_weight_schedule_v2(self.state.global_step, self.state.max_steps, warmup_ratio=0.05)
+            w1, w2, w3 = self.loss_weight_schedule_v3(
+                self.state.global_step, self.state.max_steps,
+                warmup_ratio=self.loss_weight_config["contrastive_warmup_ratio"],
+                init_w2=self.loss_weight_config["contrastive_init_weight"],
+                max_w2=self.loss_weight_config["contrastive_max_weight"]
+            )
             final_loss = w1 * score_pred_loss + w2 * contrastive_loss
             wandb.log(
                 {
@@ -184,6 +194,15 @@ class MovieRecLLMTrainer(Trainer):
                     "loss/final_loss": final_loss,
                     "loss_weight/ce_weight": w1,
                     "loss_weight/contrastive_weight": w2,
+                }, step=self.state.global_step
+            )
+        else:
+            # without the contrastive loss, only the score prediction loss is optimized
+            final_loss = score_pred_loss
+            wandb.log(
+                {
+                    "loss/score_pred_loss(CE)": score_pred_loss,
+                    "loss/final_loss": final_loss,
                 }, step=self.state.global_step
             )
 
@@ -196,13 +215,47 @@ class MovieRecLLMTrainer(Trainer):
         else:
             return final_loss
 
+    def compute_metrics(self, eval_pred):
+        """Measure supervised next-token accuracy on the held-out training rows."""
+        return causal_lm_token_metrics(eval_pred.predictions, eval_pred.label_ids)
+
+    def prediction_step(self, model, inputs, prediction_loss_only, ignore_keys=None):
+        """Evaluate supervised CE and return token IDs for the metric callback."""
+        inputs = self._prepare_inputs(inputs)
+        labels = inputs.get("labels")
+        # Validation must also work for a single row, without batch-local positives.
+        with torch.no_grad(), self.compute_loss_context_manager():
+            outputs = model(
+                input_ids=inputs["input_ids"],
+                attention_mask=inputs["attention_mask"],
+                labels=labels,
+                output_hidden_states=False,
+                use_cache=False,
+                return_dict=True,
+            )
+        loss = outputs.loss.detach().mean() if outputs.loss is not None else None
+        if prediction_loss_only:
+            return loss, None, None
+
+        # Reduce before gathering across devices or retaining validation batches.
+        prediction_ids = outputs.logits.argmax(dim=-1).detach()
+        labels = labels.detach() if labels is not None else None
+        return loss, prediction_ids, labels
+
+    def get_eval_dataloader(self, eval_dataset=None):
+        """Keep every validation row even when contrastive training drops a tail batch."""
+        drop_last = self.args.dataloader_drop_last
+        try:
+            self.args.dataloader_drop_last = False
+            return super().get_eval_dataloader(eval_dataset)
+        finally:
+            self.args.dataloader_drop_last = drop_last
 
     def safe_float(self, x):
         try:
             return float(x)
         except Exception:
             return 0.0
-
 
     def get_topN_similarity_indices(self, top_N, inputs, is_dtw_available, batch_size, similarity_weight) -> list:
         ##### 1. Get description similarity matrix #####
@@ -245,6 +298,7 @@ class MovieRecLLMTrainer(Trainer):
         total_similarity_matrix = similarity_weight["description_weight"] * description_similarity_matrix + \
                                   similarity_weight["score_weight"] * score_similarity_matrix + similarity_weight[
                                       "trend_weight"] * dtw_similarity_matrix
+        # total_similarity_matrix = similarity_weight["description_weight"] * description_similarity_matrix
 
         if self.state.global_step % 100 == 0:
             logging.info(f"total similarity matrix: {total_similarity_matrix}")
@@ -371,3 +425,15 @@ class MovieRecLLMTrainer(Trainer):
             anneal_progress = (current_step - warmup_steps) / (total_steps - warmup_steps)
             w2 = init_w2 + (max_w2 - init_w2) * 0.5 * (1 + math.cos(math.pi * anneal_progress))
         return w1, w2
+
+    def loss_weight_schedule_v3(self, current_step, total_steps, warmup_ratio=0.1, init_w2=0.2, max_w2=0.8):
+        w1 = 1.0
+        w3 = 0.4
+
+        warmup_steps = int(total_steps * warmup_ratio)
+        if current_step < warmup_steps:
+            w2 = init_w2 + (max_w2 - init_w2) * (current_step / warmup_steps)
+        else:
+            anneal_progress = (current_step - warmup_steps) / (total_steps - warmup_steps)
+            w2 = init_w2 + (max_w2 - init_w2) * 0.5 * (1 + math.cos(math.pi * anneal_progress))
+        return w1, w2, w3

@@ -1,0 +1,11 @@
+{
+  "extends": "explanation_generation.json",
+  "dataset": "beauty",
+  "dataset_version": "not_provided",
+  "data": {
+    "processed_data_path": "data/trail_amazon_beauty/amazon_beauty_processed_data.csv",
+    "inference_result_path": "data/trail_amazon_beauty/amazon_beauty_explanation_responses.csv",
+    "training_set_path": "data/trail_amazon_beauty/amazon_beauty_training.csv",
+    "seed": 1025
+  }
+}

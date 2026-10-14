@@ -1,3 +1,10 @@
+"""
+A projection head for contrastive learning, which projects the output of a model to a lower-dimensional space.
+
+Author: Zhixi Chen
+Date: 2025-05-11
+"""
+
 import torch
 import torch.nn as nn
 

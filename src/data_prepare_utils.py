@@ -1,74 +1,22 @@
+"""
+This module contains utility functions for data preparation.
+
+Author: Zhixi Chen
+Date: 2025-06-19
+"""
+
+from prompts import (
+    build_user_prompt, description_text, get_system_prompt,
+    DOUBAN_SYSTEM_PROMPT,
+    AMAZON_BEAUTY_SYSTEM_PROMPT,
+    AMAZON_BEAUTY_SIMPLE_SYSTEM_PROMPT,
+    AMAZON_BABY_SYSTEM_PROMPT,
+    ANSWER_TEMPLATE,
+)
+
 from transformers import AutoTokenizer
 import dirtyjson
 import json
-
-DOUBAN_SYSTEM_PROMPT = """You are a movie popularity analyst. Your task is to predict a movie's popularity score based on its features and historical data, providing a structured explanation.
-Your output MUST be a single, valid JSON object with only two keys: "predict_popularity_score" and "explanation_of_score".
-
-### Output Requirements:
-1.  `predict_popularity_score`: The predicted movie popularity score at the given <InferenceTimestamp>. This is a non-negative float value, formatted strictly as a string , with no extra text, units, or symbols.
-2.  `explanation_of_score`: A text string with three mandatory sections, in order:
-    - [Trend]: Analyze <PopularityHistory> using concrete numbers (e.g., recent value, average, peaks/troughs, popularity score percentage change).
-    - [Feature]: Refer to at least two specific aspects from <MovieDescription> and explain their influence at <InferenceTimestamp>.
-    - [Integration]: Combine [Trend] and [Feature], and justify why the predicted score is reasonable at <InferenceTimestamp>. Use only provided information.
-
-- Output only the JSON object, with nothing before or after.
-
-### Input format:
-<MovieDescription>...</MovieDescription>
-<PopularityHistory>...</PopularityHistory>
-<InferenceTimestamp>...</InferenceTimestamp>
-"""
-
-AMAZON_BEAUTY_SYSTEM_PROMPT = """You are an expert product popularity analyst. Your task is to predict a product's popularity score based on its product description and historical popularity trends, and provide a structured explanation.
-Your output MUST be a single, valid JSON object with only two keys: "predict_popularity_score" and "explanation_of_score".
-
-### Output Requirements:
-1. `predict_popularity_score`: The predicted product popularity score at the given <PredictTimestamp>. It must be a non-negative float, formatted strictly as a string (no units, no extra text).
-2. `explanation_of_score`: A text string with three mandatory sections, in order:
-    - [Trend]: Analyze the historical popularity trend in `<HistoricalPopularityTrends></HistoricalPopularityTrends>` tag using concrete numbers (e.g., recent value, average, peaks/troughs, percentage change).
-    - [Feature]: Refer to at least two specific aspects in `<ProductDescription></ProductDescription>` tag (e.g., brand, category, price, awards, functionality, design) and explain their influence at <PredictTimestamp>.
-    - [Integration]: Combine [Trend] and [Feature] into a coherent justification of why the predicted score is reasonable at <PredictTimestamp>.
-
-### Reasoning Format:
-- Wrap your step-by-step reasoning in <think>...</think> tags.
-- Do not include <think> in the final output. 
-
-### Output Format:
-- Output must be a single, valid JSON object with only two keys: "predict_popularity_score" and "explanation_of_score".
-- No extra text before or after the JSON.
-
-### Input format:
-<ProductDescription>...</ProductDescription>  
-<HistoricalPopularityTrends>...</HistoricalPopularityTrends>  
-<PredictTimestamp>...</PredictTimestamp>
-"""
-
-AMAZON_BABY_SYSTEM_PROMPT = """You are an expert product popularity analyst. Your task is to predict a product's popularity score based on its product description and historical popularity trends, and provide a structured explanation.
-Your output MUST be a single, valid JSON object with only two keys: "predict_popularity_score" and "explanation_of_score".
-
-### Output Requirements:
-1. `predict_popularity_score`: The predicted product popularity score at the given <PredictTimestamp>. It must be a non-negative float, formatted strictly as a string (no units, no extra text).
-2. `explanation_of_score`: A text string with three mandatory sections, in order:
-    - [Trend]: Analyze the historical popularity trend in `<HistoricalPopularityTrends></HistoricalPopularityTrends>` tag using concrete numbers (e.g., recent value, average, peaks/troughs, percentage change).
-    - [Feature]: Refer to at least two specific aspects in `<ProductDescription></ProductDescription>` tag (e.g., brand, category, price, awards, functionality, design) and explain their influence at <PredictTimestamp>.
-    - [Integration]: Combine [Trend] and [Feature] into a coherent justification of why the predicted score is reasonable at <PredictTimestamp>.
-
-### Reasoning Format:
-- Wrap your step-by-step reasoning in <think>...</think> tags.
-- Do not include <think> in the final output. 
-
-### Output Format:
-- Output must be a single, valid JSON object with only two keys: "predict_popularity_score" and "explanation_of_score".
-- No extra text before or after the JSON.
-
-### Input format:
-<ProductDescription>...</ProductDescription>  
-<HistoricalPopularityTrends>...</HistoricalPopularityTrends>  
-<PredictTimestamp>...</PredictTimestamp>
-"""
-
-ANSWER_TEMPLATE = """{{"predict_popularity_score": "{}", "explanation_of_score": "{}"}}"""
 
 
 def find_subsequence(source, target):
@@ -90,6 +38,7 @@ def resolve_trend(trend_str: str) -> list:
     Returns:
         list: A list of trend values.
     """
+
     # Parse the json string
     trend_json_result = dirtyjson.loads(trend_str, search_for_first_object=True)
     # Extract the trend values and save to a list
@@ -99,102 +48,32 @@ def resolve_trend(trend_str: str) -> list:
 
 
 def tokenize_data_sample(sample: dict, tokenizer: AutoTokenizer, max_length, dataset_type, is_contrastive=True) -> dict:
-    ##### 1. Prepare the prompt and full input text #####
-    if dataset_type == "douban":
-        user_input = (
-            f"### Input:\n"
-            f"<MovieDescription>{sample['movie_description']}</MovieDescription>\n"
-            f"<PopularityHistory>{sample['historical_popularity_trends']}</PopularityHistory>\n"
-            f"<InferenceTimestamp>{sample['predict_timestamp']}</InferenceTimestamp>"
-        )
-        answer = json.dumps(
-            {
-                "predict_popularity_score": str(sample["ground_truth_popularity_score"]),
-                "explanation_of_score": "<exp_start> " + str(sample["explanation_of_score"]) + "<exp_end>"
-            }
-        )
-        prompt_only_text = tokenizer.apply_chat_template(
-            [
-                {"role": "system", "content": DOUBAN_SYSTEM_PROMPT},
-                {"role": "user", "content": user_input},
-                {"role": "assistant", "content": ""},
-            ],
-            tokenize=False,  # retrieve the text itself first
-            add_generation_prompt=False
-        )
-        prompt_full_text = tokenizer.apply_chat_template(
-            [
-                {"role": "system", "content": DOUBAN_SYSTEM_PROMPT},
-                {"role": "user", "content": user_input},
-                {"role": "assistant", "content": answer},
-            ],
-            tokenize=False,
-            add_generation_prompt=False,
-        )
+    """
+    Tokenize a single data sample for training or evaluation.
+    """
 
-    if dataset_type == "beauty":
-        user_input = (
-            f"### Input:\n"
-            f"<ProductDescription>{sample['movie_description']}</ProductDescription>\n"
-            f"<PopularityHistory>{sample['historical_popularity_trends']}</PopularityHistory>\n"
-            f"<InferenceTimestamp>{sample['predict_timestamp']}</InferenceTimestamp>"
-        )
-        answer = json.dumps(
-            {
-                "predict_popularity_score": str(sample["ground_truth_popularity_score"]),
-                "explanation_of_score": "<exp_start> " + str(sample["explanation_of_score"]) + "<exp_end>"
-            }
-        )
-        prompt_only_text = tokenizer.apply_chat_template(
-            [
-                {"role": "system", "content": AMAZON_BEAUTY_SYSTEM_PROMPT},
-                {"role": "user", "content": user_input},
-                {"role": "assistant", "content": ""},
-            ],
-            tokenize=False,  # retrieve the text itself first
-            add_generation_prompt=False
-        )
-        prompt_full_text = tokenizer.apply_chat_template(
-            [
-                {"role": "system", "content": AMAZON_BEAUTY_SYSTEM_PROMPT},
-                {"role": "user", "content": user_input},
-                {"role": "assistant", "content": answer},
-            ],
-            tokenize=False,
-            add_generation_prompt=False,
-        )
+    system_prompt = get_system_prompt(dataset_type, "training") # retrieve the system prompt based on the dataset type and training mode
+    user_input = build_user_prompt(sample, dataset_type, "training")
 
-    if dataset_type == "baby":
-        user_input = (
-            f"### Input:\n"
-            f"<ProductDescription>{sample['movie_description']}</ProductDescription>\n"
-            f"<PopularityHistory>{sample['historical_popularity_trends']}</PopularityHistory>\n"
-            f"<InferenceTimestamp>{sample['predict_timestamp']}</InferenceTimestamp>"
-        )
-        answer = json.dumps(
-            {
-                "predict_popularity_score": str(sample["ground_truth_popularity_score"]),
-                "explanation_of_score": "<exp_start> " + str(sample["explanation_of_score"]) + "<exp_end>"
-            }
-        )
-        prompt_only_text = tokenizer.apply_chat_template(
-            [
-                {"role": "system", "content": AMAZON_BABY_SYSTEM_PROMPT},
-                {"role": "user", "content": user_input},
-                {"role": "assistant", "content": ""},
-            ],
-            tokenize=False,  # retrieve the text itself first
-            add_generation_prompt=False
-        )
-        prompt_full_text = tokenizer.apply_chat_template(
-            [
-                {"role": "system", "content": AMAZON_BABY_SYSTEM_PROMPT},
-                {"role": "user", "content": user_input},
-                {"role": "assistant", "content": answer},
-            ],
-            tokenize=False,
-            add_generation_prompt=False,
-        )
+    answer = json.dumps({
+        "predict_popularity_score": str(sample["ground_truth_popularity_score"]),
+        "explanation_of_score": "<exp_start> " + str(sample["explanation_of_score"]) + "<exp_end>",
+    }) # format the answer as a json
+
+    messages = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": user_input},
+    ]
+
+    prompt_only_text = tokenizer.apply_chat_template(
+        messages + [{"role": "assistant", "content": ""}],
+        tokenize=False, add_generation_prompt=False,
+    )
+
+    prompt_full_text = tokenizer.apply_chat_template(
+        messages + [{"role": "assistant", "content": answer}],
+        tokenize=False, add_generation_prompt=False,
+    )
 
     ##### 2. Use the same tokenizer to encode prompt_only_text and prompt_full_text #####
     prompt_only_text_ids = tokenizer(
@@ -238,10 +117,9 @@ def tokenize_data_sample(sample: dict, tokenizer: AutoTokenizer, max_length, dat
 
     # Add other information to the model_inputs
     model_inputs["ground_truth_popularity_score"] = float(sample["ground_truth_popularity_score"])
-    # model_inputs["movieid"] = str(sample["movieid"])
     model_inputs["historical_popularity_trends"] = sample["historical_popularity_trends"]
     model_inputs["predict_timestamp"] = sample["predict_timestamp"]
-    model_inputs["movie_description"] = sample["movie_description"]
+    model_inputs["movie_description"] = description_text(sample)
     model_inputs["list_historical_popularity_trends"] = resolve_trend(sample["historical_popularity_trends"])
 
     # construct labels
@@ -251,7 +129,8 @@ def tokenize_data_sample(sample: dict, tokenizer: AutoTokenizer, max_length, dat
     for i in range(num_mask):
         labels[i] = -100  # -100 is the label for padding tokens in Hugging Face transformers
 
-    # Mark other labels that between <exp_start> and <exp_end>. If you want to add the explanation part into the supervised learning, just annotate this part
+    # if is_contrastive:
+    #     # Mark other labels that between <exp_start> and <exp_end>. If you want to add the explanation part into the supervised learning, just annotate this part
     for i in range(exp_start_index, min(exp_end_index + 1, len(labels))):
         labels[i] = -100
 

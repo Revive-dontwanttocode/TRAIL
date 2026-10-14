@@ -1,0 +1,89 @@
+{
+  "random_seed": 1025,
+  "fine_tuning_model_name": "deepseek-ai/DeepSeek-R1-Distill-Qwen-7B",
+  "dataset_path": "data/trail_douban/douban_training_set_new.csv",
+  "dataset_version": "not_provided",
+  "dataset_type": "douban",
+  "peft_type": "lora",
+  "resume_from_checkpoint": false,
+  "lora_adapter_resume_path": "",
+  "sentence_encoder_name": "all-mpnet-base-v2",
+  "wandb_config": {
+    "entity": null,
+    "project": "TRAIL",
+    "name": null,
+    "mode": "offline"
+  },
+  "huggingface_model_loading_config": {
+    "max_seq_length": 4096,
+    "dtype": "bfloat16",
+    "device_map": "auto",
+    "is_contrastive": true,
+    "split_ratio": 0.05
+  },
+  "lora_config": {
+    "r": 32,
+    "lora_alpha": 64,
+    "target_modules": ["q_proj", "v_proj", "o_proj"],
+    "lora_dropout": 0.05,
+    "bias": "none",
+    "task_type": "CAUSAL_LM"
+  },
+  "qlora_config": {
+    "r": 16,
+    "qlora_alpha": 32,
+    "target_modules": ["q_proj", "v_proj"],
+    "qlora_dropout": 0.1,
+    "bias": "none",
+    "task_type": "CAUSAL_LM"
+  },
+  "qlora_bnb_config": {
+    "load_in_4bit": true,
+    "bnb_4bit_quant_type": "nf4",
+    "bnb_4bit_use_double_quant": true,
+    "bnb_4bit_compute_dtype": "float16"
+  },
+  "contrastive_learning_config": {
+    "top_N": 2,
+    "DTW": true,
+    "hard_negative_mining": false,
+    "hard_negative_mining_top_N": 2,
+    "similarity_weight": {
+      "score_weight": 0.2,
+      "description_weight": 0.4,
+      "trend_weight": 0.4
+    },
+    "infoNCE_temperature": 0.1,
+    "projection_out_dim": 256,
+    "projection_dropout": 0.1
+  },
+  "loss_weight_config": {
+    "contrastive_warmup_ratio": 0.05,
+    "contrastive_init_weight": 0.2,
+    "contrastive_max_weight": 0.8
+  },
+  "training_config": {
+    "per_device_train_batch_size": 8,
+    "per_device_eval_batch_size": 1,
+    "eval_strategy": "epoch",
+    "eval_steps": null,
+    "eval_accumulation_steps": 1,
+    "gradient_accumulation_steps": 4,
+    "learning_rate": 2e-5,
+    "num_train_epochs": 1,
+    "weight_decay": 0.05,
+    "lr_scheduler_type": "cosine",
+    "warmup_ratio": 0.1,
+    "max_grad_norm": 1,
+    "save_steps": 150,
+    "bf16": true,
+    "torch_compile": false,
+    "remove_unused_columns": false,
+    "logging_steps": 10,
+    "report_to": "wandb",
+    "group_by_length": false,
+    "dataloader_drop_last": false,
+    "save_total_limit": 2,
+    "optim": "adamw_torch_fused"
+  }
+}

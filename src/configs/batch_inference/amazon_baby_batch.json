@@ -1,0 +1,17 @@
+{
+  "extends": "DoubanBatch.json",
+  "lora_adapter_path": "runs/TRAIL/KitchenTrain/20261013-134639/adapter",
+  "device_map": {"": "cuda:0"},
+  "torch_compile": false,
+  "testing_set_type": "baby",
+  "testing_dataset_path": "data/amazon_home_and_kitchen/TRAILTraining/amazon_kitchen_testing.csv",
+  "dataset_version": "Amazon2014HomeAndKitchenOriginalPeriods-DoubanSchema-20261012",
+  "item_column": "item_id",
+  "evaluation": {
+    "user_interaction_path": "data/amazon_home_and_kitchen/OriginalPeriods/test.csv",
+    "user_column": "user_id",
+    "item_column": "item_id",
+    "item_id_offset": -1,
+    "top_k_list": [5, 10, 15, 20]
+  }
+}

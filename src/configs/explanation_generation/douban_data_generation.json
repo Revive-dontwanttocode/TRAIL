@@ -1,0 +1,12 @@
+{
+  "extends": "explanation_generation.json",
+  "dataset": "douban",
+  "dataset_version": "not_provided",
+  "data": {
+    "processed_data_path": "data/trail_amazon_beauty/amazon_beauty_processed_data.csv", // TODO: please define yourself
+    "inference_result_path": "data/trail_amazon_beauty/amazon_beauty_explanation_responses.csv", // TODO: please define yourself
+    "training_set_path": "data/trail_amazon_beauty/amazon_beauty_training.csv", // TODO: please define yourself
+    "validation_set_path": "data/trail_amazon_beauty/amazon_beauty_validation.csv", // TODO: please define yourself
+    "seed": 1025
+  }
+}

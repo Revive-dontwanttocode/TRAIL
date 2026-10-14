@@ -1,0 +1,28 @@
+{
+  "model_name": "deepseek-ai/DeepSeek-R1-Distill-Qwen-7B",
+  "lora_adapter_path": "runs/TRAIL/DoubanTrain/Seed1025/adapter",
+  "device_map": "auto",
+  "torch_compile": true,
+  "testing_set_type": "douban",
+  "testing_dataset_path": "data/trail_douban/last_month_dataset_filtered.csv",
+  "dataset_version": "not_provided",
+  "item_column": "movieid",
+  "inference_params": {
+    "max_new_tokens": 3192,
+    "temperature": 0.35,
+    "do_sample": true,
+    "top_p": 0.95,
+    "top_k": 35,
+    "repetition_penalty": 1.2,
+    "num_beams": 1
+  },
+  "batch_size": 32,
+  "max_retry": 1,
+  "seed": 1,
+  "evaluation": {
+    "user_interaction_path": null,
+    "user_column": "user_id",
+    "item_column": "movieid",
+    "top_k_list": [5, 10, 15, 20]
+  }
+}
