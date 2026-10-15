@@ -27,8 +27,8 @@ supervised score prediction with contrastive learning over explanation represent
 Use Python 3.11 and run the commands from the repository root:
 
 ```bash
-conda create -n trail python=3.11
-conda activate trail
+conda create -n py311trail python=3.11
+conda activate py311trail
 python -m pip install -r requirements.txt --extra-index-url https://download.pytorch.org/whl/cu128
 ```
 
