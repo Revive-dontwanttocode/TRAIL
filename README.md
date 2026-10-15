@@ -1,10 +1,18 @@
 # Following The TRAIL: Predicting and Explaining Tomorrow’s Hits with a Fine-Tuned LLM
 
 <p align="center">
-    [![Paper](https://img.shields.io/badge/Paper-Read-blue)](https://dl.acm.org/doi/10.1145/3774904.3792616)
-    [![arXiv](https://img.shields.io/badge/arXiv-B31B1B?logo=arxiv&logoColor=white)](https://arxiv.org/abs/2602.04225)
-    [![Code](https://img.shields.io/badge/Code-181717?logo=github&logoColor=white)](https://github.com/Revive-dontwanttocode/TRAIL)
-    [![Citation](https://img.shields.io/badge/Citation-BibTeX-555555)](#-citation)
+  <a href="https://dl.acm.org/doi/10.1145/3774904.3792616">
+    <img src="https://img.shields.io/badge/Paper-Read-blue" alt="Paper">
+  </a>
+  <a href="https://arxiv.org/abs/2602.04225">
+    <img src="https://img.shields.io/badge/arXiv-B31B1B?logo=arxiv&amp;logoColor=white" alt="arXiv">
+  </a>
+  <a href="https://github.com/Revive-dontwanttocode/TRAIL">
+    <img src="https://img.shields.io/badge/Code-181717?logo=github&amp;logoColor=white" alt="Code">
+  </a>
+  <a href="#-citation">
+    <img src="https://img.shields.io/badge/Citation-BibTeX-555555" alt="Citation">
+  </a>
 </p>
 
 `TRAIL` (*TRend and explanation Integrated Learner*) predicts an item's future popularity
