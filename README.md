@@ -127,6 +127,8 @@ Outputs are saved in `runs/<RUN_NAME>/`: `inference_result.csv` contains predict
 
 ## 📄 Citation
 
+If you found this repository useful, please kindly cite it as follows:
+
 ```bibtex
 @inproceedings{zhang2026trail,
   author = {Zhang, Yinan and Chen, Zhixi and Jing, Jiazheng and Shen, Zhiqi},
