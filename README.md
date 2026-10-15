@@ -1,18 +1,16 @@
 # Following The TRAIL: Predicting and Explaining Tomorrow’s Hits with a Fine-Tuned LLM
 
-[![Paper](https://img.shields.io/badge/Paper-Read-blue)](https://dl.acm.org/doi/10.1145/3774904.3792616)
-[![arXiv](https://img.shields.io/badge/arXiv-B31B1B?logo=arxiv&logoColor=white)](https://arxiv.org/abs/2602.04225)
-[![Code](https://img.shields.io/badge/Code-181717?logo=github&logoColor=white)](https://github.com/Revive-dontwanttocode/TRAIL)
-[![Citation](https://img.shields.io/badge/Citation-BibTeX-555555)](#-citation)
+<p align="center">
+    [![Paper](https://img.shields.io/badge/Paper-Read-blue)](https://dl.acm.org/doi/10.1145/3774904.3792616)
+    [![arXiv](https://img.shields.io/badge/arXiv-B31B1B?logo=arxiv&logoColor=white)](https://arxiv.org/abs/2602.04225)
+    [![Code](https://img.shields.io/badge/Code-181717?logo=github&logoColor=white)](https://github.com/Revive-dontwanttocode/TRAIL)
+    [![Citation](https://img.shields.io/badge/Citation-BibTeX-555555)](#-citation)
+</p>
 
 `TRAIL` (*TRend and explanation Integrated Learner*) predicts an item's future popularity
 from its description, historical popularity, and a target timestamp. It generates an
 explanation and ranks candidates for non-personalized recommendation. Training combines
 supervised score prediction with contrastive learning over explanation representations.
-
-<p align="center">
-  TRAIL Paper: <a href="https://dl.acm.org/doi/10.1145/3774904.3792616">https://dl.acm.org/doi/10.1145/3774904.3792616</a>
-</p>
 
 ![TRAIL architecture](https://files.seeusercontent.com/2026/10/14/9fnF/TRAIL_arc.png)
 
